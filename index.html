@@ -50,13 +50,15 @@
         <button id="pause" class="hidden">Pause</button>
         <button id="reset" >Reset</button>
         <hr/>
+
+
         <div style="display: inline-block;">
+            <div> Generation: <span id="generation"/></div>
+            <div> Population: <span id="population"/></div>
+
             <div id="grid"></div>
         </div>
     </div>
-
-
-
 
     <script>
         var ROWS = 100;
@@ -83,7 +85,7 @@
             if (typeof console.log != 'function') {
                 return;
             }
-            var cells = state.cells || [];
+            var cells = state.cells;
             console.log(
                     cells.map(function (row) {
                         return row.map(function (cell) {
@@ -93,13 +95,14 @@
             );
         }
         function viewInHTML(state, hooks) {
-            var cells = state.cells;
+            document.getElementById('generation').textContent = state.generation;
+            document.getElementById('population').textContent = state.population;
 
             var grid = document.getElementById('grid');
             if (grid.childElementCount === 0) {
                 //fill the grid
                 var gridContent = document.createElement("table");
-                cells.forEach(function(row, y) {
+                state.cells.forEach(function(row, y) {
                     var rowUI = document.createElement("tr");
                     row.forEach(function (cell, x) {
                         var cellUI = document.createElement("td");
@@ -121,7 +124,7 @@
                 });
                 grid.appendChild(gridContent);
             } else {
-                cells.forEach(function(row) {
+                state.cells.forEach(function(row) {
                     row.forEach(function (cell) {
                         var cellUI = document.getElementById(cell.getId());
                         if (cell.isLiving()) {
@@ -139,8 +142,10 @@
         }
 
         //main game logic
-        function GameOfLife(ui) {
+        function GameOfLife(ui, options) {
             ui = ui || { render: function () { console.log('UI: render'); } };
+
+            options = options || {};
 
             var cells;
             var interval;
@@ -159,13 +164,18 @@
                 randomize: randomize,
             };
 
+            var generation = 0;
+
             cells = initCells();
             ui.setHooks(hooks);
             updateUI();
 
-
             function updateUI() {
-                ui.render({cells: cells});
+                ui.render({
+                    cells: cells,
+                    generation: generation,
+                    population: getPopulation(),
+                });
             }
 
             function Cell(id, state) {
@@ -217,8 +227,26 @@
                 return values[Math.floor(Math.random() * values.length)];
             }
 
+            function resistsDeath() {
+                return options.dieHardRate && Math.random() < options.dieHardRate;
+            }
+
+            function resistsLife() {
+                return options.abortionRate && Math.random() < options.abortionRate;
+            }
+
             function isWithinBounds (x, y) {
                 return (x >= 0 && x < COLUMNS && y >= 0 && y < ROWS)
+            }
+
+            function getPopulation() {
+                var population = 0;
+                mapToAllCells(function(cell){
+                    if (cell.isLiving()) {
+                        population++;
+                    }
+                });
+                return population;
             }
 
             function getNeighbours(x, y) {
@@ -237,13 +265,15 @@
                 return getNeighbours(x, y).filter(function(cell) {return cell.isLiving(); }).length;
             }
 
-            function getNextState() {
+            function getNextGenerationCells() {
                 return mapToAllCells(
                     function (cell, x, y) {
                         var countLivingNeighbours = getCountLivingNeighbours(x, y);
-                        if (cell.isDead() && countLivingNeighbours === 3) {
+                        if (cell.isDead() && countLivingNeighbours === 3 && !resistsLife()) {
                             return cell.become(STATE.LIVING);
-                        } else if (cell.isLiving() && (countLivingNeighbours < 2 || countLivingNeighbours > 3)) {
+                        }
+
+                        if (cell.isLiving() && (countLivingNeighbours < 2 || countLivingNeighbours > 3) && !resistsDeath()) {
                             return cell.become(STATE.DEAD);
                         }
                         return cell;
@@ -260,13 +290,15 @@
             }
 
             function next() {
-                cells = getNextState();
+                cells = getNextGenerationCells();
+                generation++;
                 updateUI();
             }
 
             function reset() {
                 clearInterval(interval);
                 cells = initCells();
+                generation = 0;
                 updateUI();
             }
 
@@ -283,6 +315,8 @@
                 cells = mapToAllCells(function (cell) {
                     return cell.become(pickRandomIn([STATE.DEAD, STATE.LIVING]));
                 });
+
+                generation = 0;
                 updateUI();
             }
 
@@ -293,7 +327,11 @@
         var views = [];
         //views.push(viewInConsole);
         views.push(viewInHTML);
-        GOL = new GameOfLife(new GameOfLifeUI(views));
+        var options = {
+            dieHardRate:.1,
+            abortionRate:.1
+        };
+        GOL = new GameOfLife(new GameOfLifeUI(views), options);
 
         document.getElementById('next').addEventListener("click", GOL.next);
         document.getElementById('play').addEventListener("click", function () {
