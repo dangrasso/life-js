@@ -10,10 +10,6 @@
             font-family: sans-serif;
         }
 
-        #grid {
-            background-color: #DDDDDD;
-        }
-
         table {
             border-spacing:0;
         }
@@ -41,21 +37,31 @@
 </head>
 <body>
 
-    <div id="game" style="text-align: center">
+    <div id="gol" style="text-align: center">
+        <h1>Game of Life ++</h1>
+        <div class="commands">
+            <button id="randomize" >Randomize!</button>
+            <button id="next" >Next</button>
+            <button id="play" >Play</button>
+            <button id="pause" class="hidden">Pause</button>
+            <button id="reset" >Reset</button>
+            <button id="save" >Save</button>
+            <button id="load" >Load</button>
+        </div>
 
-        <h1>Game of Life</h1>
-        <button id="randomize" >Randomize!</button>
-        <button id="next" >Next</button>
-        <button id="play" >Play</button>
-        <button id="pause" class="hidden">Pause</button>
-        <button id="reset" >Reset</button>
-        <hr/>
+        <div class="options">
+            <label for="abortionRate">% Abortion</label>
+            <input id="abortionRate" type="range" min="0" max="1" value="0" step="0.1" alt="probability that a cell supposed to be born is not born"/>
 
+            <label for="dieHardRate">% DieHard</label>
+            <input id="dieHardRate" type="range" min="0" max="1" value="0" step="0.1" alt="probability that a cell supposed to die survives" />
+        </div>
 
-        <div style="display: inline-block;">
-            <div> Generation: <span id="generation"/></div>
-            <div> Population: <span id="population"/></div>
+        <div class="stats">
+            Generation: <span id="generation"></span> - Population: <span id="population"></span>
+        </div>
 
+        <div class="view" style="display: inline-block;">
             <div id="grid"></div>
         </div>
     </div>
@@ -63,141 +69,207 @@
     <script>
         var ROWS = 100;
         var COLUMNS = 200;
-        var TICK = 10;
+        var TICK = 20;
 
+        GameOfLifeUtils = (function () {
+            var STATES = {
+                DEAD: 0,
+                LIVING: 1,
+            };
+            return {
+                STATES: STATES,
+                isLiving: function (cell) { return cell.state === STATES.LIVING;},
+                isDead: function (cell) { return cell.state === STATES.DEAD;}
+            }
+        })();
 
         //UI for the game state with pluggable views
         function GameOfLifeUI (views) {
             views = views || [];
-            var gameHooks = {};
             return {
-                render: function (state) {
-                    views.forEach(function (view) { view(state, gameHooks); });
+                init: function(state, hooks) {
+                    views.forEach(function (view) { view.init(state, hooks); });
                 },
-                setHooks: function (hooks) {
-                    gameHooks = hooks;
+                render: function (state) {
+                    views.forEach(function (view) { view.render(state); });
                 }
             }
         }
 
         //UI views
-        function viewInConsole(state) {
-            if (typeof console.log != 'function') {
-                return;
-            }
-            var cells = state.cells;
-            console.log(
-                    cells.map(function (row) {
-                        return row.map(function (cell) {
-                            return cell.getState();
-                        }).join("");
-                    }).join('\n')
-            );
+        function ConsoleView() {
+            var initialized = false;
+            var isLiving = GameOfLifeUtils.isLiving;
+
+            return {
+                init: function (state, hooks) {
+                    window.GOL = hooks;
+                    console.log('************ Welcome to GameOfLifeJS *************');
+                    console.log('available commands:\n', '- ' + Object.keys(hooks).join('\n - '));
+                    initialized = true;
+                },
+                render: function (state) {
+                    if (!initialized) {
+                        console.error('HTML view not initialized!');
+                        return;
+                    }
+                    console.log('Generation ' + state.generation);
+                    console.log('Population: ' + state.population);
+
+                    console.group();
+                    console.log(
+                            state.cells.map(function (row) {
+                                return row.map(function (cell) {
+                                    return isLiving(cell)? '#' : '_';
+                                }).join("");
+                            }).join('\n')
+                    );
+                    console.groupEnd();
+                }
+            };
         }
-        function viewInHTML(state, hooks) {
-            document.getElementById('generation').textContent = state.generation;
-            document.getElementById('population').textContent = state.population;
+        function HTMLView() {
+            var initialized = false;
 
-            var grid = document.getElementById('grid');
-            if (grid.childElementCount === 0) {
-                //fill the grid
-                var gridContent = document.createElement("table");
-                state.cells.forEach(function(row, y) {
-                    var rowUI = document.createElement("tr");
-                    row.forEach(function (cell, x) {
-                        var cellUI = document.createElement("td");
-                        cellUI.classList.add("square");
-                        cellUI.id = cell.getId();
-                        cellUI.classList.add(cell.isLiving()? "living" : "dead");
+            var isLiving = GameOfLifeUtils.isLiving;
 
-                        cellUI.addEventListener("mousedown", function (e) {
-                            hooks.toggleLife(x, y);
-                        });
-                        cellUI.addEventListener("mouseover", function (e) {
-                            if (e.buttons == 1 || e.buttons == 3) {
+            //TODO: clean up!
+            var generationUI = document.getElementById('generation');
+            var populationUI = document.getElementById('population');
+
+            return {
+                init: function init(state, hooks) {
+                    var grid = document.getElementById('grid');
+                    var gridContent = document.createElement("table");
+                    state.cells.forEach(function(row, y) {
+                        var rowUI = document.createElement("tr");
+                        row.forEach(function (cell, x) {
+                            var cellUI = document.createElement("td");
+                            cellUI.classList.add("square");
+                            cellUI.id = cell.id;
+                            cellUI.classList.add(isLiving(cell)? "living" : "dead");
+
+                            cellUI.addEventListener("mousedown", function (e) {
                                 hooks.toggleLife(x, y);
+                            });
+                            cellUI.addEventListener("mouseover", function (e) {
+                                if (e.buttons == 1 || e.buttons == 3) {
+                                    hooks.toggleLife(x, y);
+                                }
+                            });
+                            rowUI.appendChild(cellUI);
+                        });
+                        gridContent.appendChild(rowUI);
+                    });
+                    grid.appendChild(gridContent);
+
+                    document.getElementById('next').addEventListener("click", hooks.next);
+                    document.getElementById('play').addEventListener("click", function () {
+                        document.getElementById('play').classList.add('hidden');
+                        document.getElementById('pause').classList.remove('hidden');
+                        hooks.play();
+                    });
+                    document.getElementById('pause').addEventListener("click", function () {
+                        document.getElementById('pause').classList.add('hidden');
+                        document.getElementById('play').classList.remove('hidden');
+                        hooks.pause();
+                    });
+                    document.getElementById('reset').addEventListener("click", function () {
+                        document.getElementById('pause').classList.add('hidden');
+                        document.getElementById('play').classList.remove('hidden');
+                        hooks.reset();
+                    });
+                    document.getElementById('randomize').addEventListener("click", hooks.randomize);
+
+                    document.getElementById('save').addEventListener("click", hooks.save);
+                    document.getElementById('load').addEventListener("click", hooks.load);
+
+                    document.getElementById('dieHardRate').addEventListener("input", function (e) {
+                        hooks.setOption("dieHardRate", e.target.value);
+                    });
+                    document.getElementById('abortionRate').addEventListener("input", function (e) {
+                        hooks.setOption("abortionRate", e.target.value);
+                    });
+                    initialized = true;
+                },
+                render: function render(state) {
+                    if (!initialized) {
+                        console.error('HTML view not initialized!');
+                        return;
+                    }
+                    generationUI.textContent = state.generation;
+                    populationUI.textContent = state.population;
+
+                    state.cells.forEach(function(row) {
+                        row.forEach(function (cell) {
+                            var cellUI = document.getElementById(cell.id);
+
+                            if (isLiving(cell)) {
+                                cellUI.classList.add("living");
+                                cellUI.classList.remove("dead");
+                            } else {
+                                cellUI.classList.add("dead");
+                                cellUI.classList.remove("living");
                             }
                         });
-                        rowUI.appendChild(cellUI);
                     });
-                    gridContent.appendChild(rowUI);
-                });
-                grid.appendChild(gridContent);
-            } else {
-                state.cells.forEach(function(row) {
-                    row.forEach(function (cell) {
-                        var cellUI = document.getElementById(cell.getId());
-                        if (cell.isLiving()) {
-                            cellUI.classList.add("living");
-                            cellUI.classList.remove("dead");
-                        } else {
-                            cellUI.classList.add("dead");
-                            cellUI.classList.remove("living");
-                        }
-                    });
-                });
-            }
-
-
+                }
+            };
         }
 
         //main game logic
-        function GameOfLife(ui, options) {
-            ui = ui || { render: function () { console.log('UI: render'); } };
+        function GameOfLife(ui) {
+            ui = ui || { init: function () {}, render: function () {} };
 
-            options = options || {};
+            var options = {
+                dieHardRate: 0,
+                abortionRate: 0
+            };
 
             var cells;
             var interval;
 
-            var STATE = {
-                DEAD: "__",
-                LIVING: "@@",
-            };
-
             var hooks = {
                 toggleLife: toggleLife,
-                reset: reset,
+                setOption: setOption,
                 next: next,
                 play: play,
                 pause: pause,
+                reset: reset,
                 randomize: randomize,
+                save: save,
+                load: load,
             };
 
             var generation = 0;
 
+            var STATES = GameOfLifeUtils.STATES;
+            var isLiving = GameOfLifeUtils.isLiving;
+            var isDead = GameOfLifeUtils.isDead;
+
             cells = initCells();
-            ui.setHooks(hooks);
+            ui.init(getGameState(), hooks);
             updateUI();
 
-            function updateUI() {
-                ui.render({
+            function getGameState() {
+                return {
                     cells: cells,
                     generation: generation,
                     population: getPopulation(),
-                });
+                };
+            }
+
+            function updateUI() {
+                ui.render(getGameState());
             }
 
             function Cell(id, state) {
-                //immutable
-                return {
-                    getId: function() {return id;},
-                    getState: function() {return state;},
-
-                    isDead: function() {return state === STATE.DEAD},
-                    isLiving: function() {return state === STATE.LIVING},
-                    become: function(state) {
-                        return new Cell(this.getId(), state);
-                    }
-                };
+                this.id = id;
+                this.state = state;
             }
 
             function getCell(x, y) {
                 return cells[y][x];
-            }
-
-            function setCell(x, y, cell) {
-                cells[y][x] = cell;
             }
 
             function initCells() {
@@ -205,7 +277,7 @@
                 for (var y = 0; y < ROWS; y++) {
                     initialCells[y] = [];
                     for (var x = 0; x < COLUMNS; x++) {
-                        initialCells[y][x] = new Cell([x,y].join('_'), STATE.DEAD);
+                        initialCells[y][x] = new Cell([x,y].join('_'), STATES.DEAD);
                     }
                 }
                 return initialCells;
@@ -223,8 +295,9 @@
                 });
             }
 
-            function pickRandomIn(values) {
-                return values[Math.floor(Math.random() * values.length)];
+            function getRandomCellState() {
+                var states = Object.keys(STATES).map(function (key) {return STATES[key];});
+                return states[Math.floor(Math.random() * states.length)];
             }
 
             function resistsDeath() {
@@ -235,18 +308,18 @@
                 return options.abortionRate && Math.random() < options.abortionRate;
             }
 
-            function isWithinBounds (x, y) {
-                return (x >= 0 && x < COLUMNS && y >= 0 && y < ROWS)
-            }
-
             function getPopulation() {
                 var population = 0;
                 mapToAllCells(function(cell){
-                    if (cell.isLiving()) {
+                    if (isLiving(cell)) {
                         population++;
                     }
                 });
                 return population;
+            }
+
+            function isWithinBounds (x, y) {
+                return (x >= 0 && x < COLUMNS && y >= 0 && y < ROWS)
             }
 
             function getNeighbours(x, y) {
@@ -261,32 +334,58 @@
                 return neighbours;
             }
 
-            function getCountLivingNeighbours(x, y) {
-                return getNeighbours(x, y).filter(function(cell) {return cell.isLiving(); }).length;
+            function getLivingNeighbours(x, y) {
+                return getNeighbours(x, y).filter(function(cell) {return isLiving(cell); });
             }
 
             function getNextGenerationCells() {
                 return mapToAllCells(
                     function (cell, x, y) {
-                        var countLivingNeighbours = getCountLivingNeighbours(x, y);
-                        if (cell.isDead() && countLivingNeighbours === 3 && !resistsLife()) {
-                            return cell.become(STATE.LIVING);
+                        var numLivingNeighbours = getLivingNeighbours(x, y).length;
+                        if (isDead(cell) && numLivingNeighbours === 3 && !resistsLife()) {
+                            return new Cell(cell.id, STATES.LIVING);
                         }
 
-                        if (cell.isLiving() && (countLivingNeighbours < 2 || countLivingNeighbours > 3) && !resistsDeath()) {
-                            return cell.become(STATE.DEAD);
+                        if (isLiving(cell) && (numLivingNeighbours < 2 || numLivingNeighbours > 3) && !resistsDeath()) {
+                            return new Cell(cell.id, STATES.DEAD);
                         }
                         return cell;
                     }
                 );
             }
 
+            var SERIALIZATION_ROW_SEPARATOR = '\n';
+            var SERIALIZATION_CELL_SEPARATOR = '';
+
+            function serializeCells (cells) {
+                return cells.map(function (row){
+                    return row.map(function(cell) {
+                        return "" + cell.state;
+                    }).join(SERIALIZATION_CELL_SEPARATOR);
+                }).join(SERIALIZATION_ROW_SEPARATOR);
+            }
+
+            function deserializeCells (serializedCells) {
+                var extractedCells = [];
+                serializedCells.split(SERIALIZATION_ROW_SEPARATOR).forEach(function (row, y){
+                    extractedCells[y] = [];
+                    row.split(SERIALIZATION_CELL_SEPARATOR).forEach(function(cellState, x) {
+                        extractedCells[y][x] = new Cell([x,y].join('_'), parseInt(cellState,10));
+                    });
+                });
+                return extractedCells;
+            }
+
             //================PUBLIC API===================
 
             function toggleLife (x, y) {
                 var cell = getCell(x, y);
-                setCell(x,y, cell.isLiving()? cell.become(STATE.DEAD) : cell.become(STATE.LIVING));
+                cell.state = isLiving(cell)? STATES.DEAD : STATES.LIVING;
                 updateUI();
+            }
+
+            function setOption (key, value) {
+                options[key] = value;
             }
 
             function next() {
@@ -311,11 +410,37 @@
                 clearInterval(interval);
             }
 
+            function save() {
+                try {
+                    localStorage.setItem('gol.savegame.compressed', JSON.stringify({
+                        date: new Date(),
+                        cells: serializeCells(cells),
+                        generation: generation
+                    }));
+                } catch (err) {
+                    console.error('error while saving', err);
+                }
+            }
+
+            function load() {
+                try {
+                    var savegame = JSON.parse(localStorage.getItem('gol.savegame.compressed'));
+                    if (savegame) {
+                        cells = deserializeCells(savegame.cells);
+                        generation = savegame.generation;
+                        updateUI();
+                    } else {
+                        console.error('no savegame found', savegame);
+                    }
+                } catch (err) {
+                    console.error('error while loading', err);
+                }
+            }
+
             function randomize() {
                 cells = mapToAllCells(function (cell) {
-                    return cell.become(pickRandomIn([STATE.DEAD, STATE.LIVING]));
+                    return new Cell(cell.id, getRandomCellState());
                 });
-
                 generation = 0;
                 updateUI();
             }
@@ -323,35 +448,11 @@
             return hooks;
         }
 
-        //todo: add html grid ui
         var views = [];
-        //views.push(viewInConsole);
-        views.push(viewInHTML);
-        var options = {
-            dieHardRate:.1,
-            abortionRate:.1
-        };
-        GOL = new GameOfLife(new GameOfLifeUI(views), options);
+        //views.push(new ConsoleView());
+        views.push(new HTMLView());
 
-        document.getElementById('next').addEventListener("click", GOL.next);
-        document.getElementById('play').addEventListener("click", function () {
-            GOL.play();
-            document.getElementById('pause').classList.remove('hidden');
-            document.getElementById('play').classList.add('hidden');
-        });
-        document.getElementById('pause').addEventListener("click", function () {
-            GOL.pause();
-            document.getElementById('play').classList.remove('hidden');
-            document.getElementById('pause').classList.add('hidden');
-        });
-        document.getElementById('reset').addEventListener("click", function () {
-            GOL.reset();
-            document.getElementById('play').classList.remove('hidden');
-            document.getElementById('pause').classList.add('hidden');
-        });
-        document.getElementById('randomize').addEventListener("click", function () {
-            GOL.randomize();
-        });
+        GameOfLife(new GameOfLifeUI(views));
 
     </script>
 
