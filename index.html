@@ -3,53 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <title></title>
-    <style>
-        body {  color: #555555;  font-family: sans-serif;  }
-        h1 {  margin-bottom: 5px;  }
-        small {  font-size: small;  color: #979797  }
-        div {  margin: 5px;  }
-        .hidden { display: none; }
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
 
-        #gol table {  border-spacing:0;  }
-        #gol .square {  height: 3px;  width: 3px; }
+    <style>
+        .hidden { display: none; }
+        .top-buffer { margin-top:10px; }
+        #gol table {
+            border-spacing:0;
+            margin: 0 auto !important;
+            float: none !important;
+        }
+        #gol .square {  height: 5px;  width: 5px; }
         #gol .living {       background-color: hsl(0, 80%, 60%); }
         #gol .living:hover { background-color: hsl(0, 50%, 45%); }
         #gol .dead:hover {   background-color: hsl(0, 40%, 35%); }
         #gol .dead {         background-color: hsl(0, 30%, 25%); }
     </style>
 </head>
-<body>
-
-    <div id="gol" style="text-align: center">
-        <h1>Life Simulation</h1>
-        <small>(Generation: <span id="generation"></span> - Population: <span id="population"></span>)</small>
-
-        <div class="option">
-            <label for="abortionRate">Abortion</label>
-            <input id="abortionRate" type="range" min="0" max="1" value="0" step="0.1" alt="probability that a cell supposed to be born is not born"/>
-            <span id="abortionRateVal">0%</span>
+<body id="gol" class="container">
+    <h1>Life Simulation</h1>
+    <div class="row">
+        <div class="col-sm-6">
+            This simulation is based on the rules of
+            <a href="https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life">Conway's Game of Life</a>,
+            adding controls over how often the rules of life and death can be violated.
         </div>
-        <div class="option">
-            <label for="dieHardRate">DieHard</label>
-            <input id="dieHardRate" type="range" min="0" max="1" value="0" step="0.1" alt="probability that a cell supposed to die survives" />
-            <span id="dieHardRateVal">0%</span>
+        <div class="col-sm-6 text-right">
+            Generation: <span id="generation"></span> - Population: <span id="population"></span>
+        </div>
+    </div>
+    <div class="row top-buffer">
+        <div class="col-sm-7">
+            <button id="play" type="button" class="btn btn-primary btn-lg">
+                <span class="glyphicon glyphicon-play" aria-hidden="true"></span> Play
+            </button>
+            <button id="pause" type="button" class="btn btn-primary btn-lg hidden">
+                <span class="glyphicon glyphicon-pause" aria-hidden="true"></span> Pause
+            </button>
+            <button id="next" type="button" class="btn btn-sm btn-default">
+                <span class="glyphicon glyphicon glyphicon-step-forward" aria-hidden="true"></span> Next
+            </button>
+            <button id="randomize" type="button" class="btn btn-sm btn-default">
+                <span class="glyphicon glyphicon-random" aria-hidden="true"></span> Randomize!
+            </button>
+            <button id="reset" type="button" class="btn btn-sm btn-default">
+                <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> Reset
+            </button>
+            <button id="save" type="button" class="btn btn-sm btn-default">
+                <span class="glyphicon glyphicon-save" aria-hidden="true"></span> Save
+            </button>
+            <button id="load" type="button" class="btn btn-sm btn-default">
+                <span class="glyphicon glyphicon-open" aria-hidden="true"></span> Load
+            </button>
+        </div>
+        <div class="col-sm-5">
+            <div class="col-sm-6" title="probability that a cell supposed to be born is not born">
+                <label for="abortionRate">Abortion rate (<span id="abortionRateVal">0%</span>)</label>
+                <input id="abortionRate" type="range" min="0" max="1" value="0" step="0.1"/>
+            </div>
+            <div class="col-sm-6" title="probability that a cell supposed to die survives">
+                <label for="dieHardRate">Die-Hard rate (<span id="dieHardRateVal">0%</span>)</label>
+                <input id="dieHardRate" type="range" min="0" max="1" value="0" step="0.1"/>
+            </div>
         </div>
 
-
-        <div class="commands">
-            <button id="randomize" >Randomize!</button>
-            <button id="next" >Next</button>
-            <button id="play" >Play</button>
-            <button id="pause" class="hidden">Pause</button>
-            <button id="reset" >Reset</button>
-            <button id="save" >Save</button>
-            <button id="load" >Load</button>
-        </div>
-
-        <div class="view" style="display: inline-block;">
+    </div>
+    <div class="row top-buffer text-center">
+        <div class="col-xs-12 ">
             <div id="grid"></div>
         </div>
     </div>
+
+
+
+
 
     <script>
         var ROWS = 100;
